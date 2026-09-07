@@ -1,8 +1,6 @@
 from typing import Dict
 import numpy as np
-
-from splits import splits
-
+import src.usePydl.predictors.helpers.interval as INTERVAL
 
 # ----------------------------------------------------------------------
 # Tree
@@ -26,9 +24,12 @@ class Tree:
 
             elif "split_info" in node:
                 split_info = node['split_info']
-                idx = split_info['id']
-                split_obj = split_info['split_obj']
-                direction = split_obj.evaluate_sample(idx,sample)
+                features = split_info['feats']
+                left_interval = split_info['left_interval']
+                right_interval = split_info['right_interval']
+                if INTERVAL.contains_in_dict(left_interval, sample[features],features): direction = 'L'
+                elif INTERVAL.contains_in_dict(right_interval, sample[features],features): direction = 'R'
+                else: direction = 'Unkown'
                 path['splits'].append(split_info)
                 path['directions'].append(direction)
                 if direction == 'L':
@@ -116,9 +117,7 @@ def remap_tree(tree, feature_history):
     def recurse(node):
         if "value" in node: return
 
-
-        split_data = feature_history.store_split_data(node["feat"])
-        node["split_info"] = split_data
+        node["split_info"] = feature_history.store_split_data(node["feat"])
 
         if "left" in node: recurse(node["left"])
         if "right" in node: recurse(node["right"])

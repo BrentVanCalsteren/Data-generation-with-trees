@@ -39,7 +39,7 @@ def test_data_generation():
     #pred = build_tree_iteratively(feature_data)
     #samples_gen = pred.gen_data_from_single_tree(n=200, conf=1)
     #pred = RandomForestPredictor(sample_obj)
-    pred = LeafCoherenceBoostingPredictor(sample_obj=sample_obj, n_trees=10*samples_train.shape[1])
+    pred = RandomForestPredictor(sample_obj=sample_obj, n_trees=10*samples_train.shape[1])
     samples_gen = gen_new_data_guided(predictor=pred,n=400)
 
     #=================================================

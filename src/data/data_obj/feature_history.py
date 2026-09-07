@@ -87,8 +87,8 @@ class FeatureHistory:
     def get_splits_array(self):
         return self.splits_obj.get_splits_array()
 
-    def store_split_reference(self, idx):
-        return {'id': idx, 'split_obj' : self.splits_obj}
+    def store_split_data(self, idx):
+        return self.splits_obj.all_data_on_id(idx)
 
     def remove_unused_split_data(self, used_ids):
         self.splits_obj.remove_unused_split_data(used_ids)
@@ -122,7 +122,6 @@ class FeatureHistory:
                 else: print('no tree obj')
             futures = new_futures
         return Tree(tree=tree)
-
 
 def get_feature_weights( mode: str = 'uniform', focus_on: List[int]=None):
     n_feats = len(CONFIG.GLOBAL_CHUNK_INFO.processed_feat_min)

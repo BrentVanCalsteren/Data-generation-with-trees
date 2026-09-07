@@ -30,6 +30,14 @@ class Splits:
     def get_splits_array(self):
         return np.array(self.splits_dic['splits'])
 
+    def all_data_on_id(self, idx):
+        data = {}
+        for key in ['feats']:
+            data[key] = self.splits_dic[key][idx]
+        data['left_interval'] = self.left_interval(idx)
+        data['right_interval'] = self.right_interval(idx)
+        return data
+
     def remove_unused_split_data(self, used_ids):
         clean_split_dic = SplitType.create_empty_split_directory()
         for idx in used_ids:

@@ -34,8 +34,10 @@ class LeafCoherenceBoostingPredictor:
             sample_weights = np.ones(n_samples, dtype=np.float64) / n_samples  # init uniform
             for m in range(self.n_trees//self.n_chunks):
                 print(f"training tree based on sample weights: ({sample_weights}")
-                sampled_indices = np.random.choice(n_samples, size=n_samples, replace=True, p=sample_weights)  # sample based on weight
-                boost_samples = np.unique(samples[sampled_indices],return_counts=False, axis=0)
+                sampled_indices = np.random.choice(n_samples, size=n_samples, replace=True, p=sample_weights)
+                unique_orig_ids = np.unique(sampled_indices)
+                boost_samples = samples[unique_orig_ids]
+
 
                 feat_hist = FeatureHistory(samples=boost_samples) #create splits
                 feat_weights = get_feature_weights(mode='random')
@@ -50,17 +52,18 @@ class LeafCoherenceBoostingPredictor:
                 complete_tree = feat_hist.get_complete_tree_memory_efficient()
                 # 5. Compute per-sample residual error on the training data
                 leafs = complete_tree.get_leafs()
+                errors = [leaf["error"] for leaf in leafs]
                 for leaf in leafs:
-                    leaf_error = leaf["error"]
                     sample_ids = leaf["value"]["sample_ids"]
-                    orig_ids = list(set(sampled_indices[sample_ids]))
+                    leaf_error = leaf["error"]
+                    orig_ids = unique_orig_ids[sample_ids]
                     leaf_weights = sample_weights[orig_ids]
-                    sample_weights[orig_ids] = leaf_error * leaf_weights
+                    sample_weights[orig_ids] = leaf_weights * np.exp(self.agrasivness * (leaf_error / np.max(errors)))
 
 
                 self.trees.append(complete_tree)
-                self.tree_weights.append(1) #don't know why i should give a weight to tree
-                sample_weights[sample_weights < 1e-8] = 0
+                #self.tree_weights.append(1) #don't know why i should give a weight to tree
+                sample_weights[sample_weights < 1e-10] = 0
                 sample_weights /= np.sum(sample_weights)
 
 
@@ -111,16 +114,10 @@ class GANBoostingPredictor:
                     preds = discriminator.predict(X)
                     return preds.flatten().astype(float)
 
-                # 5. Evaluate P(real | x) on the original real dataset
                 probs_real = _predict_prob_real(disc, samples)
                 probs_real = np.clip(probs_real, 0.05, 0.95)
-
-                # 6. Density Ratio log-odds update
-                # Points where P(real) is close to 1 are under-represented by the generator
                 log_odds = np.log(probs_real / (1.0 - probs_real))
                 clipped_odds = np.clip(log_odds, -2.5, 2.5)
-
-                # 7. Update sample weights
                 sample_weights = sample_weights * np.exp(self.agrasivness * clipped_odds)
                 sample_weights[sample_weights < 1e-10] = 0
                 sample_weights /= np.sum(sample_weights)
@@ -161,12 +158,10 @@ def gen_new_data_guided(predictor, n=100, reference_samples: np.ndarray = None, 
             directions = p['directions']
             for j, d in enumerate(directions):
                 split_info = split_infos[j]
-                idx = split_info['id']
-                split_obj = split_info['split_obj']
                 if d == 'L':
-                    intervals.append(split_obj.left_interval(idx))
+                    intervals.append(split_info['left_interval'])
                 else:
-                    intervals.append(split_obj.right_interval(idx))
+                    intervals.append(split_info['right_interval'])
         # sample values from all intervals
         for feat in range(reference_samples.shape[1]):
             combined_inter = [

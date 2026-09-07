@@ -1,12 +1,29 @@
 from __future__ import annotations
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Dict
 import numpy as np
 
 
 Interval = Tuple[bool, float, float, bool] #left_closed, startpoint, endpoint, right_closed
 
 
-def contains_value(inter: Interval, value: float):
+def contains_in_dict(inter_dic: Dict[List[Interval]], value, features):
+    if isinstance(features, int):
+        inter = inter_dic[features]
+        for inte in inter:
+            if contains_value(inte, value):
+                return True
+    else:
+        table = [0] * len(features)
+        for i, feature in enumerate(features):
+            inter = inter_dic[features]
+            for inte in inter:
+                if contains_value(inte, value):
+                    table[i] = 1
+        return np.sum(table) == len(table)
+
+
+
+def contains_value(inter: Interval, value):
     if not valid_interval(inter): return False
     left_closed, start, end, right_closed = inter
     if value < start or value > end: return False
