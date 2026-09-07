@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 from src.samplers.sampler import Sampler
-from scipy import stats
+import src.usePydl.predictors.helpers.interval as INTERVAL
 
 class SingleGaussian1DSampler(Sampler):
     mean = None
@@ -54,8 +54,9 @@ class SingleGaussian1DSampler(Sampler):
     @classmethod
     def sample_from_interval(cls, interval, count=1):
         if isinstance(interval, List):
+            if len(interval) == 0: return np.array([])
             interval = interval[random.randint(0,len(interval)-1)] #select random interval
-        np_list = interval.return_interval_as_list()
+        np_list = INTERVAL.return_interval_as_list(interval)
         mean = np_list.mean()
         std = np.sqrt(np_list.var())
         return np.random.normal(loc=mean, scale=std, size=count)

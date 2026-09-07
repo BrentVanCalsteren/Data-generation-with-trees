@@ -1,6 +1,8 @@
 from typing import Dict
 import numpy as np
 
+from splits import splits
+
 
 # ----------------------------------------------------------------------
 # Tree
@@ -22,10 +24,12 @@ class Tree:
                 path['leaf_vals'] = node['value']
                 return
 
-            elif "split_obj" in node:
-                split_obj = node['split_obj']
-                direction = split_obj.evaluate_sample(sample)
-                path['splits'].append(split_obj)
+            elif "split_info" in node:
+                split_info = node['split_info']
+                idx = split_info['id']
+                split_obj = split_info['split_obj']
+                direction = split_obj.evaluate_sample(idx,sample)
+                path['splits'].append(split_info)
                 path['directions'].append(direction)
                 if direction == 'L':
                     traverse(node['left'])
@@ -56,25 +60,14 @@ class Tree:
         leaves = []
 
         def recurse(node):
-            if "value" in node: leaves.append(node)
+            if "value" in node:
+                leaves.append(node)
             else:
                 if "left" in node: recurse(node["left"])
                 if "right" in node: recurse(node["right"])
 
         recurse(self.tree)
         return leaves
-
-
-    def remove_sample_ids_from_leafs(self):
-        def recurse(node):
-            if "value" in node:
-                if isinstance(node["value"], dict):
-                    node["value"].pop("sample_ids", None)
-            else:
-                if "left" in node: recurse(node["left"])
-                if "right" in node: recurse(node["right"])
-
-        if self.tree is not None: recurse(self.tree)
 
 
     def get_all_paths(self):
@@ -91,16 +84,16 @@ class Tree:
 
 
             if "left" in node:
-                split_obj = node['split_obj']
-                current_path['splits'].append(split_obj)
+                split_info = node['split_info']
+                current_path['splits'].append(split_info)
                 current_path['directions'].append('L')
                 path_finder(node["left"], current_path)
                 current_path['splits'].pop()
                 current_path['directions'].pop()
 
             if "right" in node:
-                split_obj = node['split_obj']
-                current_path['splits'].append(split_obj)
+                split_info = node['split_info']
+                current_path['splits'].append(split_info)
                 current_path['directions'].append('R')
                 path_finder(node["right"], current_path)
                 current_path['splits'].pop()
@@ -119,11 +112,13 @@ class Tree:
 #GLOBAL FUNCTIONS
 
 def remap_tree(tree, feature_history):
+
     def recurse(node):
         if "value" in node: return
 
-        split_data = feature_history.get_feat_split_result(node["feat"])
-        node["split_obj"] = split_data
+
+        split_data = feature_history.store_split_data(node["feat"])
+        node["split_info"] = split_data
 
         if "left" in node: recurse(node["left"])
         if "right" in node: recurse(node["right"])

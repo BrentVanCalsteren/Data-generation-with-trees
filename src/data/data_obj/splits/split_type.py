@@ -1,37 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List
 import numpy as np
-
-from src.usePydl.predictors.helpers.interval import Intervals
 
 
 class SplitType(ABC):
-
-    @abstractmethod
-    def left_interval(self):
-        pass
-
-    @abstractmethod
-    def right_interval(self):
-        pass
-
-    @abstractmethod
-    def evaluate_sample(self, sample):
-        pass
-
-    @abstractmethod
-    def map_samples_to_split(self, samples: np.ndarray):
-        pass
-
-    @abstractmethod
-    def to_string(self) -> str:
-        pass
-
-    def __str__(self) -> str:
-        return self.to_string()
-
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}: {self.to_string()}>"
 
 
     @classmethod
@@ -44,9 +15,7 @@ class SplitType(ABC):
                 'values' : [],
                 'feats' : [],
                 'splits' : [],
-                'scores': [],
-                'left_intervals': [],
-                'right_intervals': []}
+                'scores': [],}
 
     @classmethod
     def add_split(cls, candi, feats, splits: np.ndarray, vals):

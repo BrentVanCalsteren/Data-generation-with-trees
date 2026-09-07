@@ -7,6 +7,7 @@ from src.data.preprocess.preprocessor import Processor
 class GlobalChunkInfo:
     def __init__(self, loader, labels_at_front=False):
         self.loader = loader
+        self.n_chunks = loader.n_chunks
         self.labels_at_front = labels_at_front
         self.global_preprocessor: Processor = None
 
@@ -27,7 +28,7 @@ class GlobalChunkInfo:
 
     def init_all_parameters(self):
         preproces_done = []
-        for i in range(self.loader.n_chunks):
+        for i in range(self.n_chunks):
             chunk_samples, labels = self.loader.load_chunk(i, self.labels_at_front)
             chunk_samples = convert_samples_to_num(chunk_samples)
             if self.global_preprocessor is None:
@@ -50,7 +51,7 @@ class GlobalChunkInfo:
         if len(self.global_preprocessor.processes) > 0:
             preproces_done.append(self.global_preprocessor.processes[0])
         for i in range(1,len(self.global_preprocessor.processes)):
-            for j in range(self.loader.n_chunks):
+            for j in range(self.n_chunks):
                 chunk_samples, _ = self.loader.load_chunk(j, self.labels_at_front)
                 chunk_samples = convert_samples_to_num(chunk_samples)
                 for process in preproces_done:

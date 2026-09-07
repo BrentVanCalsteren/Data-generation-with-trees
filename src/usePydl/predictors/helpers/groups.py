@@ -14,7 +14,7 @@ def create_complete_random_feat_groups(n_groups: int, features_each_group: float
     return groups
 
 
-def create_feat_cor_imp_groups(n_groups: int, features_each_group: int,total_features: int):
+def create_total_feat_balanced_groups(n_groups: int, features_each_group: int,total_features: int):
     feature_importance = CONFIG.GLOBAL_CHUNK_INFO.feature_importance
 
     if total_features <= features_each_group: return [list(range(total_features)) for _ in range(n_groups)]

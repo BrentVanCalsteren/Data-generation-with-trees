@@ -11,64 +11,34 @@ from collections import Counter
 
 class Samples:
     def __init__(self, dataset: str = 'iris', data_type='tabular', labels_at_front=False):
-        self.current_feat_hist: FeatureHistory = None
-
         self.samples = np.array([])
         self.labels = np.array([])
         self.samples_test = np.array([])
         self.labels_test = np.array([])
 
-        self.loader = None
+        self.loader = load_dataloader_by_name(dataset_name=dataset, data_type=data_type)
         self.labels_at_front = labels_at_front
-        self.active_chunk = None
-        self._chunk_cache = {}
-
-        self.load_new_dataset(dataset, data_type)
+        self.active_chunk: int = None
 
 
     def load_new_dataset(self, dataset='iris', data_type='tabular'):
         self.loader = load_dataloader_by_name(dataset_name=dataset, data_type=data_type)
-        self._chunk_cache = {}
 
 
     def load_chunk(self, chunk_id, split_test=0.0):
-        self.active_chunk = chunk_id
-        if chunk_id in self._chunk_cache:
-            c_samples, c_test, c_lbl_tr, c_lbl_te = self._chunk_cache[chunk_id]
-            self.samples = c_samples
-            self.samples_test = c_test
-            self.labels = c_lbl_tr
-            self.labels_test = c_lbl_te
-            self.save_feature_history(samples=self.samples)
-            return
+        if self.active_chunk == chunk_id: return
 
-        self.remove_memory()
+        self.active_chunk = chunk_id
         samples, lables = self.loader.load_chunk(chunk_id, self.labels_at_front)
         samples = convert_samples_to_num(samples)
         samples_train, samples_test, labels_train, labels_test = train_test(samples=samples, labels=lables, test_size=split_test)
         self.samples = self.pre_process_samples(samples=samples_train)
-        self.save_feature_history(samples=self.samples)
         self.samples_test = self.pre_process_samples(samples=samples_test)
         self.labels = labels_train
         self.labels_test = labels_test
-        self._chunk_cache[chunk_id] = (self.samples, self.samples_test, self.labels, self.labels_test)
 
-    def clear_chunk_cache(self, chunk_id=None):
-        if chunk_id is not None:
-            self._chunk_cache.pop(chunk_id, None)
-        else:
-            self._chunk_cache.clear()
-        gc.collect()
 
-    def remove_memory(self):
-        if self.current_feat_hist is not None:
-            self.current_feat_hist.reduce_memory()
-        self.current_feat_hist = None
-        self.samples = np.array([])
-        self.samples_test = np.array([])
-        gc.collect()
-
-    def get_best_matching_labels(self, gen_samples: np.ndarray,chunk_id=0,k= 5):
+    def get_best_matching_labels(self, gen_samples: np.ndarray,chunk_id=0,k= 1):
         self.load_chunk(chunk_id)
         labels_flat = np.asarray(self.labels).flatten()
         real_samples = self.samples
@@ -85,14 +55,6 @@ class Samples:
             gen_labels.append(most_common_label)
         return np.array(gen_labels)
 
-    def save_feature_history(self, samples = None):
-        if samples is None: samples = self.samples
-        new_hist = FeatureHistory(samples=samples)
-        new_hist.past = self.current_feat_hist
-        self.current_feat_hist = new_hist
-        return new_hist.get_sample_array_from_history()
-
-
     def pre_process_samples(self, samples):
         if np.array(samples).shape[0] == 0: return samples
         return CONFIG.GLOBAL_CHUNK_INFO.global_preprocessor.preprocess(samples)
@@ -105,7 +67,7 @@ class Samples:
     def get_samples(self):
         return self.samples
 
-    def save_output(self,samples, llables, output_name):
+    def save_output(self,samples, llables=None, output_name='output'):
         samples = self.reverse_process_samples(samples)
         labels = self.labels
         if llables is not None:

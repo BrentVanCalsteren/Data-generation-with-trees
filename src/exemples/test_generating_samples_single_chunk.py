@@ -5,10 +5,13 @@ from pydl85 import DL85Classifier
 from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from usePydl.predictors.random_forest_predictor import RandomForestPredictor
+from usePydl.predictors.boosting_predictor import LeafCoherenceBoostingPredictor, GANBoostingPredictor, gen_new_data_guided
+from src.data.data_obj.feature_history import FeatureHistory, get_feature_weights
+from src.evalData.eval_data import evaluate
 
-DO_CLASSIFICATION = True
+DO_CLASSIFICATION = False
 def test_data_generation():
-    sample_obj = Samples(dataset='iris',data_type='tabular',labels_at_front=False)
+    sample_obj = Samples(dataset='mnist_jpeg' ,data_type='image',labels_at_front=False)
     sample_obj.load_chunk(chunk_id=0,split_test=0.2)
     samples_train = sample_obj.samples
     samples_test = sample_obj.samples_test
@@ -16,14 +19,14 @@ def test_data_generation():
 
     #==========================
     #create splits
-    feature_data = sample_obj.current_feat_hist
-    feature_data.stays_in_memory = True
-    feature_data.creat_splits()
-    # test image convertion
+    feature_data = FeatureHistory(samples=samples_train)
+    w = None
+    feature_data.creat_splits(w)
     train_splits = feature_data.get_splits_array().T
+    test_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_test).T
     same_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_train).T
     print(f'bool convertion works correctly: {np.equal(train_splits, same_splits).all()}')
-    test_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_test).T
+
 
     #=========================================
     #now let's test the quality of the splits, good splits will result into good classification with dlclassifier
@@ -33,20 +36,33 @@ def test_data_generation():
     #=================================================
     #now let's generate new data
 
-    pred = build_tree_iteratively(feature_data)
-    #pred = RandomForestPredictor(sample_obj, max_features_per_tree=10)
-    #samples_gen = pred.gen_new_data_guided(n=200, conf=1)
-    samples_gen = pred.gen_data_from_single_tree(n=200, conf=1)
+    #pred = build_tree_iteratively(feature_data)
+    #samples_gen = pred.gen_data_from_single_tree(n=200, conf=1)
+    #pred = RandomForestPredictor(sample_obj)
+    pred = LeafCoherenceBoostingPredictor(sample_obj=sample_obj, n_trees=10*samples_train.shape[1])
+    samples_gen = gen_new_data_guided(predictor=pred,n=400)
+
     #=================================================
     #now let's see if classification is better with extra generated data
-    splits_gen_x = feature_data.splits_obj.map_samples_to_splits(samples_gen).T
+    feature_data = FeatureHistory(samples=samples_gen)
+    feature_data.creat_splits(w)
+    train_splits = feature_data.get_splits_array().T
+    test_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_test).T
+
     labels_gen = sample_obj.get_best_matching_labels(gen_samples=samples_gen, chunk_id=0)
     #test on generated data alone
-    classify(splits_gen_x, test_splits, labels_gen, labels_test)
-    splits_combined = np.vstack((train_splits, splits_gen_x))
+    classify(train_splits, test_splits, labels_gen, labels_test)
+
+    samples_combined = np.vstack((samples_train, samples_gen))
+    feature_data = FeatureHistory(samples=samples_combined)
+    feature_data.creat_splits(w)
+    train_splits = feature_data.get_splits_array().T
+    test_splits = feature_data.splits_obj.map_samples_to_splits(samples=samples_test).T
     y_combined = np.hstack((labels_train, labels_gen))
     # test on combined data
-    classify(splits_combined, test_splits, y_combined, labels_test)
+    classify(train_splits, test_splits, y_combined, labels_test)
+    #All eval metrics
+    evaluate(real_samples=samples_train, real_labels=labels_train, gen_samples=samples_gen,gen_labels=labels_gen,test_samples=samples_test,sample_obj=sample_obj)
     sample_obj.save_output(samples=samples_gen, llables=labels_gen,output_name='generated')
 
 

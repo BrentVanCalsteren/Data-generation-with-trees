@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import pdist
-from sklearn.cluster import KMeans
+from scipy.cluster.vq import kmeans2
 #continue errors
 
 
@@ -24,57 +24,88 @@ class CombinedMSEIntervalError:
         return (self.interval_weight * norm_i) + (self.mse_weight * norm_m)
 
 
-class ClusterCoherenceError:
-    def __init__(self, samples, feature_weights=None, random_state=None):
-        samples = np.asarray(samples, dtype=np.float64)
+class ClusterError:
+    def __init__(self, samples, feature_weights=None):
         if feature_weights is not None:
-            weights = np.sqrt(np.asarray(feature_weights, dtype=np.float64))
-            self.samples = samples * weights
+            self.samples = samples * feature_weights
         else:
             self.samples = samples
 
-        self.rng = np.random.default_rng(random_state)
-
     def __call__(self, tids):
-        sub_samples = self.samples[list(tids)]
-        n_samples = sub_samples.shape[0]
-        if n_samples < 2:
-            return 1e7
+        # Convert tids without redundant list() overhead
+        idx = np.fromiter(tids, dtype=np.int64) if not isinstance(tids, np.ndarray) else tids
+        n = len(idx)
+        if n < 2:
+            return 0.0
 
-        rand_idx = self.rng.integers(0, n_samples)
-        c1 = sub_samples[rand_idx]
+        X = self.samples[idx]
+        inv_n = 1.0 / n
 
-        diff1 = sub_samples - c1
-        dist_sq1 = np.einsum('ij,ij->i', diff1, diff1)
-        max_idx = np.argmax(dist_sq1)
-        return float(np.sqrt(dist_sq1[max_idx]))
+        # 1. Pass 1: Compute sums and sum of squares per feature
+        # Matches the C++ accumulator loop
+        sum_f = np.sum(X, axis=0)
+        sum_sq_f = np.sum(X ** 2, axis=0)
+
+        # 1-cluster variance per feature: sum_sq - (sum^2 / n)
+        var_f = sum_sq_f - (sum_f ** 2 * inv_n)
+        var_f = np.maximum(var_f, 0.0)
+
+        w1 = float(np.sum(var_f))
+        if w1 < 1e-6:
+            return 0.0
+
+        # Find dimension with maximum variance
+        max_dim = int(np.argmax(var_f))
+
+        # 2. Pass 2: Split along the mean of the dominant feature
+        split_threshold = sum_f[max_dim] * inv_n
+        x_dim = X[:, max_dim]
+
+        mask_a = x_dim < split_threshold
+        count_a = int(np.count_nonzero(mask_a))
+        count_b = n - count_a
+
+        if count_a == 0 or count_b == 0:
+            return w1
+
+        sum_split_a = np.sum(x_dim[mask_a])
+        mean_a = sum_split_a / count_a
+        mean_b = (sum_f[max_dim] - sum_split_a) / count_b
+
+        # 3. Between-cluster variance along primary axis
+        between_var = count_a * count_b * inv_n * ((mean_a - mean_b) ** 2)
+
+        # 4. Return W1 + between_var
+        return float(w1 + between_var)
 
 
 
 #dense bounding boxes
 class IntervalSizesError:
     def __init__(self, samples, feature_weights=None):
-        self.samples = samples
-        self.feature_weights = np.asarray(feature_weights, dtype=float) if feature_weights is not None else None
+        if feature_weights is not None:
+            self.samples = samples * feature_weights
+        else:
+            self.samples = samples
 
     def __call__(self, tids):
         sub_samples = self.samples[list(tids)]
         if sub_samples.shape[0] < 2:
-            return 10e6
+            return 10e7
 
         max_per_row = sub_samples.max(axis=0)
         min_per_row = sub_samples.min(axis=0)
         diff = max_per_row - min_per_row
-        if self.feature_weights is not None:
-            return np.sum(diff * self.feature_weights)
         return np.sum(diff)
 
 
 #finds spherical clusters
 class MSEError:
     def __init__(self, samples: np.ndarray, feature_weights=None):
-        self.samples = samples
-        self.feature_weights = np.asarray(feature_weights, dtype=float) if feature_weights is not None else None
+        if feature_weights is not None:
+            self.samples = samples * feature_weights
+        else:
+            self.samples = samples
 
     def __call__(self, tids):
         indices = np.fromiter(tids, dtype=np.intc)
@@ -83,8 +114,6 @@ class MSEError:
             return 10e6
         mean = np.mean(sub_samples, axis=0)
         diff_sq = (sub_samples - mean) ** 2
-        if self.feature_weights is not None:
-            return np.mean(np.sum(diff_sq * self.feature_weights, axis=1))
         return np.mean(np.sum(diff_sq, axis=1))
 
 #Mean Absolute Error

@@ -2,7 +2,7 @@ import re
 from typing import List
 
 import CONFIG
-from src.usePydl.error_fun import IntervalSizesError, MSEError, ClusterCoherenceError
+from src.usePydl.error_fun import IntervalSizesError, MSEError, ClusterError
 import numpy as np
 from src.data.find_largest_gaps import DivisiveCluster
 from scipy.stats import gaussian_kde
@@ -14,41 +14,67 @@ from src.data.data_obj.splits.interval_split import IntervalSplit
 KEYS = ['types', 'values', 'feats', 'splits']
 
 class Splits:
-    splits_dic = None
-    values = None
-    feature_index_array:List = None
-    def __init__(self, features, max_splits_each_feature:None, weights_each_feature=None):
+
+    def __init__(self, features,max_splits, max_splits_each_feature=None, weights_each_feature=None):
         samples = features.T
         self.max_splits_each_feature = max_splits_each_feature
+        self.max_splits = max_splits
         self.weights_each_feature = weights_each_feature
         self.splits_dic = {}
         self.interval_error = IntervalSizesError(samples=samples,feature_weights=weights_each_feature)
         self.mse_error = MSEError(samples=samples,feature_weights=weights_each_feature)
-        self.cluster_error = ClusterCoherenceError(samples=samples,feature_weights=weights_each_feature)
+        self.cluster_error = ClusterError(samples=samples,feature_weights=weights_each_feature)
         self.create_best_splits(features)
+
 
     def get_splits_array(self):
         return np.array(self.splits_dic['splits'])
 
-    def get_data_on_split_id(self, bool_feat_id):
-        return self.splits_dic['types'][bool_feat_id]
+    def remove_unused_split_data(self, used_ids):
+        clean_split_dic = SplitType.create_empty_split_directory()
+        for idx in used_ids:
+            for i in range(len(self.splits_dic['splits'])):
+                if i == idx:
+                    for key in KEYS:
+                        clean_split_dic[key].append(self.splits_dic[key][i])
+        self.splits_dic = clean_split_dic
+
+
 
 
     def create_best_splits(self, features):
-        all_candidates = _generate_splits(features)
-        all_splits = np.array(all_candidates['splits'])
+        all_candidates = _generate_splits(self.max_splits_each_feature, features)
+        all_splits = np.asarray(all_candidates['splits'])
         scores = self.score_splits(all_splits)
-        best_indices = np.argsort(-scores)[:CONFIG.MAX_SPLITS]
+        best_indices = np.argsort(-scores)
+        feats_sorted = np.asarray(all_candidates['feats'])[best_indices]
+
+        selected_indices = []
+        limits = list(self.max_splits_each_feature)
+        if len(limits) > 0:
+            feat_counts = [0] * len(limits)
+            remaining_total = sum(limits)
+            for idx, feat in zip(best_indices, feats_sorted):
+                if feat_counts[feat] < limits[feat]:
+                    feat_counts[feat] += 1
+                    selected_indices.append(idx)
+                    remaining_total -= 1
+                    if remaining_total == 0:
+                        break
+
+        else: selected_indices = best_indices[:self.max_splits]
+
         best_cand = SplitType.create_empty_split_directory()
         for key in KEYS:
-            val = all_candidates[key]
-            best_cand[key] = [val[i] for i in best_indices]
-        best_cand['scores'] = scores[best_indices]
-        #initing the split_classes
-        for i in range(len(best_cand['types'])):
-            best_cand['types'][i] = best_cand['types'][i](best_cand, i)
-            best_cand['left_intervals'].append(best_cand['types'][i].left_interval())
-            best_cand['right_intervals'].append(best_cand['types'][i].right_interval())
+            source = all_candidates[key]
+            if isinstance(source, np.ndarray):
+                best_cand[key] = source[selected_indices].tolist()
+            else:
+                best_cand[key] = [source[i] for i in selected_indices]
+
+        #best_cand['scores'] = scores[selected_indices]
+        print(best_cand['feats'])
+        print(self.max_splits_each_feature)
         self.splits_dic = best_cand
 
 
@@ -62,7 +88,7 @@ class Splits:
             prob_1 = 1.0 - prob_0
             return 1 - np.abs(prob_0 - prob_1)
 
-        gini_score = gini()
+        gini_scores = gini()
 
         def interval_score():
             scores = np.array([self.interval_error(np.where(row_mask)[0]) + self.interval_error(np.where(~row_mask)[0])for row_mask in is_0])
@@ -76,7 +102,7 @@ class Splits:
             max_s = np.max(scores) if np.max(scores) > 0 else 1.0
             return 1 - scores / max_s
 
-        mse_score = mse_score()
+        mse_scores = mse_score()
 
         def cluster_score():
             valid_mask = np.array([np.sum(m) >= 2 and np.sum(~m) >= 2 for m in is_0])
@@ -88,14 +114,13 @@ class Splits:
 
             valid_scores = scores[valid_mask]
             if len(valid_scores) > 0 and np.ptp(valid_scores) > 0:
-                # Min-max scale valid splits to [0, 1] where lower error -> higher score
                 scores[valid_mask] = 1.0 - (valid_scores - np.min(valid_scores)) / np.ptp(valid_scores)
             scores[~valid_mask] = 0.0
             return scores
 
-        cluster_score = cluster_score()
+        cluster_scores = cluster_score()
 
-        return 0.5*cluster_score + 0.1*gini_score + 0.3*inter_scores + 0.2*mse_score
+        return 0.5*cluster_scores + 0.5*gini_scores + 0.3*inter_scores + 0.2*mse_scores
 
 
     def map_samples_to_splits(self, samples):
@@ -103,30 +128,54 @@ class Splits:
             print('cant map splits, since its none')
             return None
         split_classes = self.splits_dic['types']
+        vals = self.splits_dic['values']
+        feats = self.splits_dic['feats']
 
         new_splits = np.zeros(((len(split_classes)), samples.shape[0]))
         for i, split in enumerate(split_classes):
-            new_splits[i] = np.array(split.map_samples_to_split(samples))
+            new_splits[i] = np.array(split.map_samples_to_split(samples, feats[i], vals[i]))
 
         return new_splits
+
+    def evaluate_sample(self,index, sample):
+        split_classes = self.splits_dic['types']
+        vals = self.splits_dic['values']
+        feats = self.splits_dic['feats']
+        return split_classes[index].evaluate_sample(sample,feats[index],vals[index])
+
+    def left_interval(self,index):
+        split_classes = self.splits_dic['types']
+        vals = self.splits_dic['values']
+        feats = self.splits_dic['feats']
+        return split_classes[index].left_interval(feats[index],vals[index])
+
+    def right_interval(self,index):
+        split_classes = self.splits_dic['types']
+        vals = self.splits_dic['values']
+        feats = self.splits_dic['feats']
+        return split_classes[index].right_interval(feats[index],vals[index])
+
 
 
 ###############################"
 ######helpers
 
 
-def _generate_splits(features):
+def _generate_splits(max_splits_each_feature,features):
     candidates = SplitType.create_empty_split_directory()
-    all_thresholds = calc_all_cont_tresholds(features)
+    all_thresholds = calc_all_cont_tresholds(max_splits_each_feature,features)
     BiggerEqSplit.generate_splits(candidates,all_thresholds,features)
     EqualSplit.generate_splits(candidates,all_thresholds,features)
     IntervalSplit.generate_splits(candidates,all_thresholds,features)
     return candidates
 
 
-def calc_all_cont_tresholds(features):
+def calc_all_cont_tresholds(max_splits_each_feature, features):
     tresh_holds = {}
     for i, feature in enumerate(features):
+        if len(max_splits_each_feature) == features.shape[0] and max_splits_each_feature[i] == 0:
+            tresh_holds[i] = np.array([])
+            continue
         # Percentile binning
         percentiles = np.linspace(5, 95, CONFIG.TRESHHOLD_GRAIN)
         p_thresholds = np.unique(np.percentile(feature, percentiles))

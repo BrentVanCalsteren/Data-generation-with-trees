@@ -1,185 +1,106 @@
 from __future__ import annotations
-from typing import List, Optional, Sequence, Tuple, Union
-import CONFIG
+from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
 
-ClosureInput = Union[str, Tuple[bool, bool]]
+Interval = Tuple[bool, float, float, bool] #left_closed, startpoint, endpoint, right_closed
 
-class Intervals:
-    def __init__(self, feat_id, min_v=None,max_v=None,):
-        self.feat_id = feat_id
-        self.min_val = min_v
-        if min_v is None:
-            self.min_val = float(CONFIG.GLOBAL_CHUNK_INFO.processed_feat_min[feat_id])
-        self.max_val = max_v
-        if max_v is None:
-            self.max_val = float(CONFIG.GLOBAL_CHUNK_INFO.processed_feat_max[feat_id])
 
-        self.interval_list: List[Interval] = []
-        self.generate_start_interval()
+def contains_value(inter: Interval, value: float):
+    if not valid_interval(inter): return False
+    left_closed, start, end, right_closed = inter
+    if value < start or value > end: return False
+    if value == start and not left_closed: return False
+    if value == end and not right_closed: return False
+    return True
 
-    def generate_start_interval(self):
-        self.interval_list = [Interval(self.min_val, self.max_val, "closed")]
+def return_interval_as_list(inter):
+    return np.array([inter[1], inter[2]])
 
-    @property
-    def is_empty(self) -> bool:
-        return len(self.interval_list) == 0
+def valid_interval(inter: Interval):
+    left_closed, startpoint, endpoint, right_closed = inter
+    if np.isnan(startpoint) or np.isnan(endpoint): return False
+    if startpoint > endpoint: return False
+    if startpoint == endpoint: return left_closed and right_closed
+    return True
 
-    def add_interval(self, startpoint: float, endpoint: float, closureType: str = "closed"):
-        add_constraint_union(self.interval_list,[Interval(startpoint, endpoint, closureType)])
 
-    def get_domain_intervals(self) -> List[Interval]:
-        #returns the interval object copy list
-        return [iv.copy() for iv in self.interval_list]
-
-    def get_domains(self) -> List[List[float]]:
-        #makes intervals closed witout epsilon
-        return [[iv.startpoint, iv.endpoint] for iv in self.interval_list]
-
-    def get_epsilon_domains(self, delta: float = 1e-6) -> List[List[float]]:
-        #makes all intervals closed
-        out = []
-        for inter in self.interval_list:
-            ep_inter = inter.epsilon_closed(delta)
-            if ep_inter is not None: out.append([ep_inter.startpoint, ep_inter.endpoint])
-        return out
-
-def add_constraint_union(interval_list, constraint_intervals: Sequence[Interval]):
-    #will intersect a list of union intervals with already present intervals
-    constraints = [iv for iv in constraint_intervals if iv.isvalid_interval]
-    #no valid constraints
+def intersect_union_interval_lists(inter_list_1: Sequence[Interval], inter_list_2: Sequence[Interval]):
+    constraints = [iv for iv in inter_list_2 if valid_interval(iv)]
     if not constraints:
         return []
 
     new_list: List[Interval] = []
-    for current in interval_list:
+    for current in inter_list_1:
         for constraint in constraints:
-            inter = current.intersect(constraint)
+            inter = intersect(current, constraint)
             if inter is not None:
                 new_list.append(inter)
     return merge_intervals(new_list)
 
-class Interval:
-    #interval types: 'closed' true, true 'open' false, false 'half-open' f, t  'half-closed' t, f
-    def __init__(self,startpoint: float,endpoint: float,closure: ClosureInput = "closed"):
-        self.startpoint = float(startpoint)
-        self.endpoint = float(endpoint)
 
-        if isinstance(closure, str): self.left_closed, self.right_closed = self._parse_closure(closure)
-        else: self.left_closed, self.right_closed = bool(closure[0]), bool(closure[1])
-        self.isvalid_interval = self._validate()
-
-    def __str__(self) -> str:
-        return f"({self.startpoint},{self.endpoint})"
-
-    def __repr__(self) -> str:
-        if not self.isvalid_interval:
-            return "EmptyInterval"
-
-        left = "_[" if self.left_closed else "_("
-        right = "]_" if self.right_closed else ")_"
-        return f"{left}{self.startpoint}, {self.endpoint}{right}"
-
-    def contains_value(self, value: float):
-        if value < self.startpoint or value > self.endpoint: return False
-        return True
-
-    def return_interval_as_list(self):
-        return np.array([self.startpoint, self.endpoint])
-
-    @staticmethod
-    def _parse_closure(closureType: str) -> Tuple[bool, bool]:
-        c = str(closureType).lower().strip()
-        if c == "closed": return True, True
-        if c == "open": return False, False
-        if c == "half-open": return False, True
-        if c == "half-closed": return True, False
-        return True, True
-
-    def _validate(self) -> bool:
-        if np.isnan(self.startpoint) or np.isnan(self.endpoint): return False
-        if self.startpoint > self.endpoint: return False
-        if self.startpoint == self.endpoint: return self.left_closed and self.right_closed
-        return True
-
-    def copy(self) -> "Interval":
-        return Interval(self.startpoint,self.endpoint,(self.left_closed, self.right_closed))
-
-    def make_closed(self, closureType: str) -> bool:
-        self.left_closed, self.right_closed = self._parse_closure(closureType)
-        self.isvalid_interval = self._validate()
-        return self.isvalid_interval
-
-    def intersect(self, other: "Interval") -> Optional["Interval"]:
-        if not (self.isvalid_interval and other.isvalid_interval): return None
-
-        if self.startpoint > other.startpoint:
-            start = self.startpoint
-            left_closed = self.left_closed
-        elif self.startpoint < other.startpoint:
-            start = other.startpoint
-            left_closed = other.left_closed
-        else:
-            start = self.startpoint
-            left_closed = self.left_closed and other.left_closed
-
-        if self.endpoint < other.endpoint:
-            end = self.endpoint
-            right_closed = self.right_closed
-        elif self.endpoint > other.endpoint:
-            end = other.endpoint
-            right_closed = other.right_closed
-        else:
-            end = self.endpoint
-            right_closed = self.right_closed and other.right_closed
-
-        out = Interval(start, end, (left_closed, right_closed))
-        return out if out.isvalid_interval else None
-
-    def epsilon_closed(self, delta: float = 1e-6) -> Optional["Interval"]:
-        #make all intervals closed by introducing a small epsilon
-        if not self.isvalid_interval: return None
-
-        s = self.startpoint + (delta if not self.left_closed else 0.0)
-        e = self.endpoint - (delta if not self.right_closed else 0.0)
-
-        if s > e: return None
-        return Interval(s, e, "closed")
+def union_interval_lists(inter_list_1: Sequence[Interval], inter_list_2: Sequence[Interval]):
+    return merge_intervals(list(inter_list_1) + list(inter_list_2))
 
 
-def merge_intervals(intervals: Sequence[Interval]) -> List[Interval]:
+def intersect(inter_1: Interval, inter_2: Interval):
+    if not (valid_interval(inter_1) and valid_interval(inter_2)): return None
+
+    if inter_1[1] > inter_2[1]:
+        start = inter_1[1]
+        left_closed = inter_1[0]
+    elif inter_1[1] < inter_2[1]:
+        start = inter_2[1]
+        left_closed = inter_2[0]
+    else:
+        start = inter_1[1]
+        left_closed = inter_1[0] and inter_2[0]
+
+    if inter_1[2] < inter_2[2]:
+        end = inter_1[2]
+        right_closed = inter_1[3]
+    elif inter_1[2] > inter_2[2]:
+        end = inter_2[2]
+        right_closed = inter_2[3]
+    else:
+        end = inter_1[2]
+        right_closed = inter_1[3] and inter_2[3]
+
+    intersect_interval = (left_closed, start, end, right_closed)
+    return intersect_interval if valid_interval(intersect_interval) else None
+
+def merge_intervals(intervals: Sequence[Interval]):
     #merge intervals
-    valid = [iv.copy() for iv in intervals if iv.isvalid_interval]
+    valid = [iv for iv in intervals if valid_interval(iv)]
     if not valid: return []
     #sort left closed bound
-    valid.sort(key=lambda iv: (iv.startpoint, not iv.left_closed, iv.endpoint))
-    merged: List[Interval] = [valid[0].copy()]
+    valid.sort(key=lambda iv: (iv[1], not iv[0], iv[2]))
+    merged: List[Interval] = [valid[0]]
 
     for iv in valid[1:]:
         last = merged[-1]
         #gap.
-        if last.endpoint < iv.startpoint:
-            merged.append(iv.copy())
+        if last[2] < iv[1]:
+            merged.append(iv)
             continue
         #touching but on both open sides.
-        if last.endpoint == iv.startpoint and not (last.right_closed or iv.left_closed):
-            merged.append(iv.copy())
+        if last[2] == iv[1] and not (last[3] or iv[0]):
+            merged.append(iv)
             continue
         #overlap
-        if iv.endpoint > last.endpoint:
-            new_end = iv.endpoint
-            new_right_closed = iv.right_closed
-        elif iv.endpoint < last.endpoint:
-            new_end = last.endpoint
-            new_right_closed = last.right_closed
+        if iv[2] > last[2]:
+            new_end = iv[2]
+            new_right_closed = iv[3]
+        elif iv[2] < last[2]:
+            new_end = last[2]
+            new_right_closed = last[3]
         else:
-            new_end = last.endpoint
-            new_right_closed = last.right_closed or iv.right_closed
+            new_end = last[2]
+            new_right_closed = last[3] or iv[3]
 
-        new_left_closed = last.left_closed
-        if last.startpoint == iv.startpoint:
-            new_left_closed = last.left_closed or iv.left_closed
+        new_left_closed = last[0]
+        if last[1] == iv[1]:
+            new_left_closed = last[0] or iv[0]
 
-        merged[-1] = Interval(last.startpoint,new_end,(new_left_closed, new_right_closed))
+        merged[-1] = (new_left_closed,last[1],new_end,new_right_closed)
     return merged
