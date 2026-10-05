@@ -154,11 +154,19 @@ def balance_samples(samples: np.ndarray, labels: np.ndarray):
     if len(uniques) <= 1: return samples, labels
 
     max_count = np.max(counts)
+    # If all classes already have the same count, do not resample!
+    if np.all(counts == max_count):
+        return samples, labels
+
     samples_bals = []
     labels_bals = []
     for cls in uniques:
         ids = np.where(labels == cls)[0]
-        resampled_ids = np.random.choice(ids, size=max_count, replace=True)
+        if len(ids) == max_count:
+            resampled_ids = ids
+        else:
+            extra_ids = np.random.choice(ids, size=max_count - len(ids), replace=True) #only add additional copies
+            resampled_ids = np.concatenate([ids, extra_ids])
         samples_bals.append(samples[resampled_ids])
         labels_bals.append(labels[resampled_ids])
 

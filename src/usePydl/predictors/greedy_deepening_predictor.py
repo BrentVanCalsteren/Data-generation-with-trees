@@ -1,3 +1,4 @@
+import copy
 from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait
 from src.data.data_obj.feature_history import extend_history
 import numpy as np
@@ -5,22 +6,23 @@ from src.usePydl.predictors.predictor import Predictor
 import CONFIG
 
 
-def generate_pred(sub_samples,n_total_samples,splits, weights) -> GreedyDeepeningPredictor:
-    pred = GreedyDeepeningPredictor(sub_samples,n_total_samples,splits, weights)
+def generate_pred(sub_samples,n_total_samples,splits, weights, error_fun) -> GreedyDeepeningPredictor:
+    pred = GreedyDeepeningPredictor(sub_samples,n_total_samples,splits, weights, error_fun)
     return pred
 
 
 class GreedyDeepeningPredictor(Predictor):
-    def __init__(self,sub_samples,n_total_samples,splits, weights):
+    def __init__(self,sub_samples,n_total_samples,splits, weights, error_fun):
         print(f"Starting Greedy Predictor, samples:{sub_samples.shape}")
-        super().__init__(sub_samples,n_total_samples,splits, weights)
+        super().__init__(sub_samples,n_total_samples,splits, weights, passed_error_fun=error_fun)
         print(f"Finished Predictor, samples:{sub_samples.shape}")
 
 
-def build_tree_iteratively(feature_history, weights=None, n_worksers=10):
+def build_tree_iteratively(feature_history, weights=None,passed_error_fun=None, n_worksers=10):
     samples = feature_history.samples
     n_samples = samples.shape[0]
-    root_predictor = GreedyDeepeningPredictor(sub_samples=samples,n_total_samples=n_samples, splits=feature_history.get_splits_array(), weights=weights)
+    root_predictor = GreedyDeepeningPredictor(sub_samples=samples,n_total_samples=n_samples, splits=feature_history.get_splits_array(),
+                                              weights=weights,error_fun=passed_error_fun)
     feature_history.tree = root_predictor.tree
     future_to_leaf = {}
 
@@ -33,12 +35,19 @@ def build_tree_iteratively(feature_history, weights=None, n_worksers=10):
                 sub_samples = history.samples[sample_ids]
                 sub_history = extend_history(sub_samples, history, leaf["value"]["leaf_id"])
                 if weights is None:
-                    if sub_history.depth < 2: new_weights = sub_history.get_feature_weights(mode='feat_imp')
-                    else: new_weights = sub_history.get_feature_weights(mode='random')
-                else: new_weights = weights
+                    if sub_history.depth < 2:
+                        new_weights = sub_history.get_feature_weights(mode='feat_imp')
+                    else:
+                        new_weights = sub_history.get_feature_weights(mode='random')
+                else:
+                    new_weights = weights
                 sub_history.creat_splits(weights_each_feature=new_weights)
 
-                future = executor.submit(generate_pred, sub_samples=sub_samples,n_total_samples=n_samples,splits=sub_history.get_splits_array(), weights=new_weights)
+                # Recreate the error function with the leaf's sub_samples and weights:
+                if passed_error_fun is not None: error_fun = type(passed_error_fun).copy(passed_error_fun, sub_samples, new_weights)
+                else: error_fun = None
+                future = executor.submit(generate_pred,sub_samples=sub_samples,n_total_samples=n_samples,
+                                         splits=sub_history.get_splits_array(),weights=new_weights,error_fun=error_fun)
                 future_to_leaf[future] = sub_history
 
     with ThreadPoolExecutor(max_workers=n_worksers) as executor:

@@ -1,6 +1,13 @@
+from typing import List
+
 import numpy as np
+from networkx.generators import trees
 from scipy.spatial.distance import pdist
 from scipy.cluster.vq import kmeans2
+
+from usePydl.predictors.helpers.tree import Tree
+
+
 #continue errors
 
 
@@ -78,6 +85,10 @@ class ClusterError:
         # 4. Return W1 + between_var
         return float(w1 + between_var)
 
+    @classmethod
+    def copy(cls, error_fun, samples,weights):
+        return cls(samples,weights)
+
 
 
 #dense bounding boxes
@@ -98,6 +109,10 @@ class IntervalSizesError:
         diff = max_per_row - min_per_row
         return np.sum(diff)
 
+    @classmethod
+    def copy(cls, error_fun, samples,weights):
+        return cls(samples,weights)
+
 
 #finds spherical clusters
 class MSEError:
@@ -116,6 +131,10 @@ class MSEError:
         diff_sq = (sub_samples - mean) ** 2
         return np.mean(np.sum(diff_sq, axis=1))
 
+    @classmethod
+    def copy(cls, error_fun, samples,weights):
+        return cls(samples,weights)
+
 #Mean Absolute Error
 class MAEError:
     def __init__(self, samples: np.ndarray):
@@ -127,6 +146,10 @@ class MAEError:
             return 10e6
         median = np.median(sub_samples, axis=0)
         return np.mean(np.sum(np.abs(sub_samples - median), axis=1))
+
+    @classmethod
+    def copy(cls, error_fun, samples,weights):
+        return cls(samples,weights)
 
 
 #Ensuring tight, strictly bounded clusters
@@ -143,6 +166,28 @@ class DiameterError:
         distances = pdist(sub_samples, metric='euclidean')
         if np.max(distances) < self.good_error: return 0
         else: return np.max(distances)
+
+class chainTreeError:
+    def __init__(self, error_fun, trees: List, step: int):
+        self.samples = error_fun.samples
+        self.trees = trees
+        self.step = step
+        self.error_fun = error_fun
+        for tree in self.trees:
+            tree.create_intervals_each_paths()
+
+    def __call__(self, tids):
+        ids = np.fromiter(tids, dtype=np.int64)
+        prev_step = self.step-1
+        total_error = 0
+        while prev_step >= 0:
+            total_error += self.trees[prev_step].miss_class_error(self.samples[ids])
+            prev_step -= 1
+        return total_error * self.error_fun(tids)
+
+    @classmethod
+    def copy(cls, error_fun, samples, weights):
+        return cls(error_fun.error_fun.copy(error_fun.error_fun, samples,weights), error_fun.trees, error_fun.step)
 
 ##########################
 #FAST ERROR FUN

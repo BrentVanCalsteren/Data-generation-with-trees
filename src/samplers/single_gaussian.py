@@ -51,12 +51,15 @@ class SingleGaussian1DSampler(Sampler):
             return np.array(accepted_samples[:n_samples])
         return self.sorted_samples(n=n_samples) #if cant find candidates
 
+
     @classmethod
-    def sample_from_interval(cls, interval, count=1):
-        if isinstance(interval, List):
-            if len(interval) == 0: return np.array([])
-            interval = interval[random.randint(0,len(interval)-1)] #select random interval
-        np_list = INTERVAL.return_interval_as_list(interval)
-        mean = np_list.mean()
-        std = np.sqrt(np_list.var())
-        return np.random.normal(loc=mean, scale=std, size=count)
+    def sample_from_interval_list_single_feature(cls, interval_list, n=1):
+        samples = []
+        if len(interval_list) == 0: return np.array([])
+        for i in range(n):
+            interval = interval_list[random.randint(0,len(interval_list)-1)] #select random interval
+            np_list = INTERVAL.return_interval_as_list(interval)
+            mean = np_list.mean()
+            std = np.sqrt(np_list.var())
+            samples.append(np.random.uniform(low=np_list[0],high=np_list[1],size=1))
+        return np.array(samples).flatten()

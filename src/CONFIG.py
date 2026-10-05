@@ -4,7 +4,7 @@ CHUNK_SIZE = 200
 
 
 #data processing
-PREPROCESS_LIST = ['scale', 'rotate_dim',['reduce_feat','nn']]
+PREPROCESS_LIST = ['scale',['reduce_feat','nn']]
 REDUCE_FEAT = 10
 NN_AVG_MIN_ERROR = 0.001
 MAX_NN_EPOCHS = 500

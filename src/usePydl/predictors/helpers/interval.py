@@ -6,20 +6,26 @@ import numpy as np
 Interval = Tuple[bool, float, float, bool] #left_closed, startpoint, endpoint, right_closed
 
 
-def contains_in_dict(inter_dic: Dict[List[Interval]], value, features):
-    if isinstance(features, int):
+def contains_in_dict(inter_dic: Dict[List[Interval]], value, features=None):
+    if features is None:
+        features = list(inter_dic.keys())
+    elif isinstance(features, int):
+        if features not in inter_dic: return True
         inter = inter_dic[features]
         for inte in inter:
             if contains_value(inte, value):
                 return True
-    else:
-        table = [0] * len(features)
-        for i, feature in enumerate(features):
-            inter = inter_dic[features]
-            for inte in inter:
-                if contains_value(inte, value):
-                    table[i] = 1
-        return np.sum(table) == len(table)
+        return False
+    table = [0] * len(features)
+    for i, feature in enumerate(features):
+        if feature not in inter_dic:
+            table[i] = 1
+            continue
+        inter = inter_dic[feature]
+        for inte in inter:
+            if contains_value(inte, value[feature]):
+                table[i] = 1
+    return np.sum(table) == len(table)
 
 
 
@@ -96,11 +102,11 @@ def merge_intervals(intervals: Sequence[Interval]):
 
     for iv in valid[1:]:
         last = merged[-1]
-        #gap.
+        #gap
         if last[2] < iv[1]:
             merged.append(iv)
             continue
-        #touching but on both open sides.
+        #touching but on both open sides
         if last[2] == iv[1] and not (last[3] or iv[0]):
             merged.append(iv)
             continue

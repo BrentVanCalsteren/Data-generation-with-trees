@@ -11,8 +11,8 @@ class GlobalChunkInfo:
         self.labels_at_front = labels_at_front
         self.global_preprocessor: Processor = None
 
-        self.feats_min_vals = None
-        self.feats_max_vals = None
+        self.feats_min = None
+        self.feats_max = None
         self.processed_feat_min = None
         self.processed_feat_max = None
         self.feature_importance = None
@@ -25,46 +25,40 @@ class GlobalChunkInfo:
         self.class_corrs = {}
 
         self.init_all_parameters()
+        self.n_features = len(self.processed_feat_min)
+        self.start_intervals = []
+        for i in range(len(self.processed_feat_min)):
+            self.start_intervals.append([(True, self.processed_feat_min[i], self.processed_feat_max[i], True)])
 
     def init_all_parameters(self):
         preproces_done = []
         for i in range(self.n_chunks):
             chunk_samples, labels = self.loader.load_chunk(i, self.labels_at_front)
             chunk_samples = convert_samples_to_num(chunk_samples)
+
             if self.global_preprocessor is None:
                 self.global_preprocessor = Processor(CONFIG.PREPROCESS_LIST, chunk_samples)
-            if len(self.global_preprocessor.processes) > 0:
-                self.global_preprocessor.processes[0].partial_fit(chunk_samples)
+
             self.total_number_samples += chunk_samples.shape[0]
-            if self.feats_min_vals is None: self.feats_min_vals = np.full(chunk_samples.shape[1], np.inf)
-            if self.feats_max_vals is None: self.feats_max_vals = np.full(chunk_samples.shape[1], -np.inf)
-
-            # update min-max values
-            for i in range(chunk_samples.shape[1]):
-                col = chunk_samples[:, i]
-                self.feats_min_vals[i] = min(self.feats_min_vals[i], float(np.min(col)))
-                self.feats_max_vals[i] = max(self.feats_max_vals[i], float(np.max(col)))
-
-            # update discrete
+            if self.feats_min is None: self.feats_min= np.min(chunk_samples, axis=0)
+            else: self.feats_min = np.minimum(self.feats_min, np.min(chunk_samples, axis=0))
+            if self.feats_max is None: self.feats_max = np.max(chunk_samples, axis=0)
+            else: self.feats_max = np.maximum(self.feats_max, np.max(chunk_samples, axis=0))
             self.update_discrete(chunk_samples)
 
-        if len(self.global_preprocessor.processes) > 0:
-            preproces_done.append(self.global_preprocessor.processes[0])
-        for i in range(1,len(self.global_preprocessor.processes)):
+        #init preprocessing
+        for i in range(len(self.global_preprocessor.processes)):
             for j in range(self.n_chunks):
                 chunk_samples, _ = self.loader.load_chunk(j, self.labels_at_front)
                 chunk_samples = convert_samples_to_num(chunk_samples)
-                for process in preproces_done:
-                    chunk_samples = process.transform(chunk_samples)
+                for k in range(i): chunk_samples = self.global_preprocessor.processes[k].transform(chunk_samples)
                 self.global_preprocessor.processes[i].partial_fit(chunk_samples)
-            preproces_done.append(self.global_preprocessor.processes[i])
 
 
 
         try:
-            # Compute min/max bounds in preprocessed feature space
-            for j in range(self.loader.n_chunks):
-                chunk_samples, _ = self.loader.load_chunk(j, self.labels_at_front)
+            for i in range(self.loader.n_chunks):
+                chunk_samples, _ = self.loader.load_chunk(i, self.labels_at_front)
                 chunk_samples = convert_samples_to_num(chunk_samples)
                 p_samples = self.global_preprocessor.preprocess(chunk_samples)
                 if self.processed_feat_min is None:
@@ -78,6 +72,9 @@ class GlobalChunkInfo:
 
             print(f'feature_importance: {self.feature_importance}')
         except:
+            if self.processed_feat_min is None:
+                self.processed_feat_min = self.feats_min
+                self.processed_feat_max = self.feats_max
             print('tried getting feature importance, failed')
 
 

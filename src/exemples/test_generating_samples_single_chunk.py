@@ -4,14 +4,18 @@ import numpy as np
 from pydl85 import DL85Classifier
 from src.usePydl.classifier.ensemble_classifier import EnsembleClassifier
 from sklearn.metrics import accuracy_score, classification_report
-from usePydl.predictors.random_forest_predictor import RandomForestPredictor
-from usePydl.predictors.boosting_predictor import LeafCoherenceBoostingPredictor, GANBoostingPredictor, gen_new_data_guided
+from usePydl.predictors.ensemble_predictors import (RandomForestPredictor,
+                                                    LeafCoherenceBoostingPredictor, GANBoostingPredictor)
+from usePydl.predictors.data_gen_methods import (gen_new_data_guided,
+                        gen_new_data_by_chain_feat_sampling, gen_data_from_single_tree, gen_new_data_gibbs)
+from usePydl.predictors.feat_conditional_predictor import FeatConditionalPredictor
 from src.data.data_obj.feature_history import FeatureHistory, get_feature_weights
 from src.evalData.eval_data import evaluate
 
 DO_CLASSIFICATION = False
 def test_data_generation():
-    sample_obj = Samples(dataset='mnist_jpeg' ,data_type='image',labels_at_front=False)
+    sample_obj = Samples(dataset='iris' ,data_type='tabular',labels_at_front=False)
+    #sample_obj = Samples(dataset='mnist_jpeg', data_type='image', labels_at_front=False)
     sample_obj.load_chunk(chunk_id=0,split_test=0.2)
     samples_train = sample_obj.samples
     samples_test = sample_obj.samples_test
@@ -35,12 +39,15 @@ def test_data_generation():
     classify(train_splits,test_splits,labels_train,labels_test)
     #=================================================
     #now let's generate new data
-
     #pred = build_tree_iteratively(feature_data)
     #samples_gen = pred.gen_data_from_single_tree(n=200, conf=1)
     #pred = RandomForestPredictor(sample_obj)
-    pred = RandomForestPredictor(sample_obj=sample_obj, n_trees=10*samples_train.shape[1])
+    #pred = LeafCoherenceBoostingPredictor(sample_obj=sample_obj, n_trees=10*samples_train.shape[1])
+    pred = FeatConditionalPredictor(sample_obj=sample_obj)
+    #samples_gen = gen_new_data_by_chain_feat_sampling(pred,n=200)
     samples_gen = gen_new_data_guided(predictor=pred,n=400)
+    #samples_gen = gen_new_data_by_chain_feat_sampling(predictor=pred,n=400)
+    #samples_gen = gen_new_data_gibbs(predictor=pred,n=400)
 
     #=================================================
     #now let's see if classification is better with extra generated data
