@@ -6,14 +6,13 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 import CONFIG
+import re
 
 valid_extensions = ['.png', '.jpg', '.jpeg', '.bmp']
 
 
 class ImageData:
-
   def __init__(self, file_path: str | Path, n_max_each_class: Optional[int] = None, seed: Optional[int] = 42):
-
     self.file_path = Path(file_path)
     self.chunk_size = CONFIG.CHUNK_SIZE
     self.n_max_each_class = n_max_each_class
@@ -28,9 +27,9 @@ class ImageData:
     self.class_to_idx: dict = {}
     self.split_if_needed()
 
-  def split_if_needed(self) -> List[Path]:
+  def split_if_needed(self):
     if not self.file_path.exists():
-      raise FileNotFoundError(f'Directory {self.file_path} does not exist.')
+      raise FileNotFoundError(f"directory {self.file_path} doesn't exist")
 
     parent_dir = self.file_path.parent
     stem = self.file_path.name
@@ -38,19 +37,15 @@ class ImageData:
     # Check if chunks are already saved on PC
     existing_chunks = [p for p in parent_dir.glob(f'{stem}_chunk_*.csv') if p.is_file()]
     if existing_chunks:
-      import re
-      existing_chunks.sort(
-        key=lambda p: int(re.search(r'_chunk_(\d+)', p.name).group(1)) if re.search(r'_chunk_(\d+)', p.name) else 0)
+      existing_chunks.sort(key=lambda p: int(re.search(r'_chunk_(\d+)', p.name).group(1)) if re.search(r'_chunk_(\d+)', p.name) else 0)
       self.chunk_files = existing_chunks
       self.n_chunks = len(existing_chunks)
-      print(
-        f"Found {self.n_chunks} pre-existing chunk manifests for '{stem}' in {parent_dir}. Skipping chunk creation.")
+      print(f"Found {self.n_chunks} pre-existing chunks for '{stem}' in {parent_dir}, skipping chunk creation")
       return self.chunk_files
 
     class_folders = [f for f in self.file_path.iterdir() if f.is_dir()]
     class_folders.sort()
-    if not class_folders:
-      raise ValueError(f'No class subdirectories found in {self.file_path}')
+    if not class_folders: raise ValueError(f'No classes found at: {self.file_path}')
 
     self.class_to_idx = {folder.name: idx for idx, folder in enumerate(class_folders)}
 
@@ -64,12 +59,10 @@ class ImageData:
         image_files = rng.sample(image_files, self.n_max_each_class)
 
       label_idx = self.class_to_idx[folder.name]
-      for img_file in image_files:
-        all_samples.append((str(img_file), label_idx))
+      for img_file in image_files: all_samples.append((str(img_file), label_idx))
 
     total_samples = len(all_samples)
-    if total_samples == 0:
-      raise ValueError(f'No valid images found in {self.file_path}')
+    if total_samples == 0: raise ValueError(f'no images found in {self.file_path}')
 
     parent_dir = self.file_path.parent
     stem = self.file_path.name
@@ -92,8 +85,7 @@ class ImageData:
       pd.DataFrame(chunk_samples, columns=['image_path', 'label']).to_csv(chunk_path, index=False)
       self.chunk_files.append(chunk_path)
 
-    print(f'Dataset contained {total_samples} images. Created {self.n_chunks}'
-          f' chunk manifests in: {parent_dir}')
+    print(f'Dataset contained {total_samples} images. Created {self.n_chunks} creating chunk at: {parent_dir}')
     return self.chunk_files
 
   def load_chunk(self, chunk_num: int = 0, label_at_front=False, balanced=True):
@@ -127,34 +119,23 @@ class ImageData:
           features.append(img_array)
           labels.append(label_id)
 
-        except Exception as e:
-          print(f'Failed to load image {img_path}: {e}')
+        except Exception as e: print(f'failed to load image {img_path}: {e}')
 
-      if not features:
-        raise ValueError(f'No valid images loaded {chunk_loaction}')
-
+      if not features: raise ValueError(f'No valid images loaded {chunk_loaction}')
       self.X = np.array(features)
       self.Y = np.array(labels).reshape(-1, 1)
 
-      print(
-          f'Loaded chunk {chunk_num}/{self.n_chunks}'
-          f' ({chunk_loaction.name}): {self.X.shape[0]} samples loaded.'
-      )
+      print(f'loaded chunk {chunk_num+1}/{self.n_chunks} ({chunk_loaction.name}): {self.X.shape[0]} samples loaded')
       return self.get_samples(balanced)
 
-    except Exception as e:
-      raise RuntimeError(
-          f'Error loading image chunk from {chunk_loaction}: {e}'
-      )
+    except Exception as e: raise RuntimeError(f'error loading chunk from {chunk_loaction}: {e}')
 
   def image_arr_to_tabular(self) -> np.ndarray:
-    if self.X is None:
-      raise ValueError("Data not loaded. Call 'loading_chunk()' first.")
+    if self.X is None: raise ValueError("Data not loaded. Call 'loading_chunk()' first.")
     return self.X.reshape(self.X.shape[0], -1)
 
   def tabular_to_image_arr(self, tabular: np.ndarray) -> np.ndarray:
-    if self.img_shape is None:
-      raise ValueError('Original image shape is unknown. Load a chunk first.')
+    if self.img_shape is None: raise ValueError('Original image shape is unknown. Load a chunk first.')
     return tabular.reshape((tabular.shape[0], *self.img_shape))
 
   def save_output_to_folder(
@@ -184,6 +165,7 @@ class ImageData:
 
 def balance_samples(samples: np.ndarray, labels: np.ndarray):
     if labels is None or labels.size == 0: return samples, labels
+
     labels = labels.flatten()
     uniques, counts = np.unique(labels, return_counts=True)
     if len(uniques) <= 1: return samples, labels

@@ -2,7 +2,7 @@ import copy
 from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait
 from src.data.data_obj.feature_history import extend_history
 import numpy as np
-from src.usePydl.predictors.predictor import Predictor
+from src.trees.predictors.predictor import Predictor
 import CONFIG
 
 

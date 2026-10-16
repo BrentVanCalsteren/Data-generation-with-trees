@@ -1,10 +1,10 @@
-from src.evalData.eval_data import (
+from src.compare.eval_data import (
     GEN_VS_REAL_Evaluator,
     test_generator_stability
 )
-from src.evalData.sanity_checks import (
+from src.compare.sanity_checks import (
     do_all_sanity_checks)
-from src.evalData.statistic_sim import (
+from src.compare.statistic_sim import (
     do_all_statistic_tests,
     kolmogorov_smirnov_test,
     wasserstein_distance,
@@ -24,7 +24,7 @@ from src.evalData.statistic_sim import (
     detection_linear,
     detection_rf
 )
-from src.evalData.discriminator import NNDiscriminator, DLDiscriminator
+from src.compare.discriminator import NNDiscriminator, DLDiscriminator
 
 __all__ = [
     "GEN_VS_REAL_Evaluator",

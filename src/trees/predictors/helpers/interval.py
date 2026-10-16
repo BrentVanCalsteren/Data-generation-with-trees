@@ -12,6 +12,9 @@ def contains_in_dict(inter_dic: Dict[List[Interval]], value, features=None):
     elif isinstance(features, int):
         if features not in inter_dic: return True
         inter = inter_dic[features]
+        if isinstance(inter[0], bool):
+            if contains_value(inter, value): return True
+            return False
         for inte in inter:
             if contains_value(inte, value):
                 return True
@@ -22,6 +25,9 @@ def contains_in_dict(inter_dic: Dict[List[Interval]], value, features=None):
             table[i] = 1
             continue
         inter = inter_dic[feature]
+        if isinstance(inter[0], bool):
+            if contains_value(inter, value): table[i] = 1
+            continue
         for inte in inter:
             if contains_value(inte, value[feature]):
                 table[i] = 1

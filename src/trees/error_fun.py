@@ -5,7 +5,7 @@ from networkx.generators import trees
 from scipy.spatial.distance import pdist
 from scipy.cluster.vq import kmeans2
 
-from usePydl.predictors.helpers.tree import Tree
+from trees.predictors.helpers.tree import Tree
 
 
 #continue errors

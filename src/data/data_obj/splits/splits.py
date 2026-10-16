@@ -2,7 +2,7 @@ import re
 from typing import List
 
 import CONFIG
-from src.usePydl.error_fun import IntervalSizesError, MSEError, ClusterError
+from src.trees.error_fun import IntervalSizesError, MSEError, ClusterError
 import numpy as np
 from src.data.find_largest_gaps import DivisiveCluster
 from scipy.stats import gaussian_kde

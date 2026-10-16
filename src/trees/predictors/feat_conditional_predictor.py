@@ -3,13 +3,13 @@ import numpy as np
 
 import CONFIG
 from src.data.data_obj.feature_history import FeatureHistory, get_feature_weights
-from src.usePydl.predictors.predictor import Predictor
-from src.usePydl.predictors.greedy_deepening_predictor import build_tree_iteratively
-from src.usePydl.error_fun import ClusterError, chainTreeError
-from src.usePydl.predictors.helpers.tree import Tree
+from src.trees.predictors.predictor import Predictor
+from src.trees.predictors.greedy_deepening_predictor import build_tree_iteratively
+from src.trees.error_fun import ClusterError, chainTreeError
+from src.trees.predictors.helpers.tree import Tree
 from src.samplers.single_gaussian import SingleGaussian1DSampler
-import src.usePydl.predictors.helpers.interval as INTERVAL
-from usePydl.predictors.helpers.tree import Tree
+import src.trees.predictors.helpers.interval as INTERVAL
+from trees.predictors.helpers.tree import Tree
 
 
 class FeatConditionalPredictor:

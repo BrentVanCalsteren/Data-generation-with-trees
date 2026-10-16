@@ -2,12 +2,12 @@ import numpy as np
 from pydl85 import DL85Predictor
 
 import CONFIG
-from src.usePydl.error_fun import IntervalSizesError, ClusterError
-from src.usePydl.leaf import ReturnIDSandPROB
+from src.trees.error_fun import IntervalSizesError, ClusterError
+from src.trees.leaf import ReturnIDSandPROB
 from src.samplers.single_gaussian import SingleGaussian1DSampler
-from usePydl.predictors.helpers.interval import Interval, intersect_union_interval_lists
+from trees.predictors.helpers.interval import Interval, intersect_union_interval_lists
 
-from usePydl.predictors.helpers.tree import Tree, remap_tree
+from trees.predictors.helpers.tree import Tree, remap_tree
 
 class Predictor:
     def __init__(self, sub_samples,n_total_samples,splits, weights, passed_error_fun=None,use_c_error='cluster_error'):

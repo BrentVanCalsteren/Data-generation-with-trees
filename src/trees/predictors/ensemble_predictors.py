@@ -4,15 +4,15 @@ from typing import List
 
 import CONFIG
 from src.data.data_obj.feature_history import FeatureHistory, get_feature_weights
-from src.usePydl.predictors.greedy_deepening_predictor import build_tree_iteratively
-from usePydl.predictors.helpers.tree import Tree
+from src.trees.predictors.greedy_deepening_predictor import build_tree_iteratively
+from trees.predictors.helpers.tree import Tree
 from src.data.data_obj.sampels import Samples
-import src.usePydl.predictors.helpers.groups as groups
-from src.usePydl.predictors.predictor import Predictor
-from src.evalData.discriminator import NNDiscriminator
+import src.trees.predictors.helpers.groups as groups
+from src.trees.predictors.predictor import Predictor
+from src.compare.discriminator import NNDiscriminator
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from src.usePydl.predictors.data_gen_methods import gen_new_data_guided
+from src.trees.predictors.data_gen_methods import gen_new_data_guided
 
 
 class EnsemblePredictor:

@@ -1,6 +1,6 @@
 import numpy as np
-from src.usePydl.predictors import default_predictor,gaussian_1D_predictor,uniform_predictor
-from src.usePydl.predictors.predictor import Predictor
+from src.trees.predictors import default_predictor,gaussian_1D_predictor,uniform_predictor
+from src.trees.predictors.predictor import Predictor
 from src.data.Dataset import *
 
 import time

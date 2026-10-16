@@ -9,8 +9,8 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, f1_score
 import CONFIG
 
-from src.evalData.sanity_checks import do_all_sanity_checks
-from src.evalData.statistic_sim import (
+from src.compare.sanity_checks import do_all_sanity_checks
+from src.compare.statistic_sim import (
     kolmogorov_smirnov_test,
     wasserstein_distance,
     jensenshannon_distance,

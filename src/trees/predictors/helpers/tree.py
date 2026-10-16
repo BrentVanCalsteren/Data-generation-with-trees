@@ -3,7 +3,7 @@ from typing import Dict
 import numpy as np
 
 import CONFIG
-import src.usePydl.predictors.helpers.interval as INTERVAL
+import src.trees.predictors.helpers.interval as INTERVAL
 
 # ----------------------------------------------------------------------
 # Tree

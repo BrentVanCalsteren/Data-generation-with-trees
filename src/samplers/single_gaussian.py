@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 from src.samplers.sampler import Sampler
-import src.usePydl.predictors.helpers.interval as INTERVAL
+import src.trees.predictors.helpers.interval as INTERVAL
 
 class SingleGaussian1DSampler(Sampler):
     mean = None

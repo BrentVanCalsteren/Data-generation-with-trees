@@ -7,7 +7,7 @@ import numpy as np
 
 import CONFIG
 from splits.splits import Splits
-from usePydl.predictors.helpers.tree import Tree, remap_tree, extend_tree
+from trees.predictors.helpers.tree import Tree, remap_tree, extend_tree
 
 
 def create_new_history(samples):

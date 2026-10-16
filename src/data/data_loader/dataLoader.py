@@ -7,13 +7,11 @@ from data.data_loader.tabular_data import TabularData
 
 
 
-def load_dataloader_by_name(dataset_name: str, main_dir: str = 'GAN-aproach-for-boolean-decision-trees-pydl8.5',
-                            data_subdir: str = 'datasets', data_type='tabular'):
+def load_dataloader_by_name(dataset_name: str, main_dir: str = 'GAN-aproach-for-boolean-decision-trees-pydl8.5', data_subdir: str = 'datasets', data_type='tabular'):
     file_path = Path().resolve()
     str_path = str(file_path)
     index = str_path.find(main_dir)
-    if index == -1:
-        raise ValueError(f"Main directory '{main_dir}' not found in path: {str_path}")
+    if index == -1: raise ValueError(f"Main directory '{main_dir}' not found in path: {str_path}")
     main_path = Path(str_path[:index + len(main_dir)])
     base_path = main_path / data_subdir
     if data_type == 'tabular':
